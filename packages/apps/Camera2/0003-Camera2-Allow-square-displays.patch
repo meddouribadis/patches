@@ -1,0 +1,28 @@
+From ed841574303b905bac824ad61f0eecb1aa8645f7 Mon Sep 17 00:00:00 2001
+From: R0rt1z2 <roger@r0rt1z2.com>
+Date: Sun, 27 Sep 2026 18:37:49 +0200
+Subject: [PATCH] Camera2: Allow square displays
+
+Non-resizeable apps targeting pre-Q get a default 4:3 minimum aspect
+ratio, which letterboxes the camera on square displays.
+
+Change-Id: If88c6a473ed1ee3131ee943d6141cb655a91fb00
+---
+ AndroidManifest.xml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 54885ae..6dc8ddb 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -42,6 +42,7 @@
+         android:icon="@mipmap/ic_launcher"
+         android:label="@string/app_name"
+         android:largeHeap="true"
++        android:minAspectRatio="1.0"
+         android:resizeableActivity="false"
+         android:restoreAnyVersion="true"
+         android:supportsRtl="true"
+-- 
+2.47.3
+

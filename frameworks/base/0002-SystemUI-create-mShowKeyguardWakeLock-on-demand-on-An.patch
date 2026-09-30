@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Wed, 30 Sep 2026 23:52:00 +0200
+Subject: [PATCH] SystemUI: create mShowKeyguardWakeLock on demand on Android TV
+
+On devices without a keyguard (Android TV), CentralSurfaces is never
+instantiated, so KeyguardViewMediator.registerCentralSurfaces() and therefore
+setupLocked() never run and mShowKeyguardWakeLock stays null.
+
+PhoneWindowManager.systemReady() still calls into KeyguardService, which
+forwards onSystemReady() to the mediator. That reaches doKeyguardLocked() ->
+showLocked(), which dereferences the null wake lock:
+
+  java.lang.NullPointerException: Attempt to invoke virtual method
+  'void android.os.PowerManager$WakeLock.acquire()' on a null object reference
+      at ...keyguard.KeyguardViewMediator.showLocked(KeyguardViewMediator.java:19)
+      at ...keyguard.KeyguardViewMediator.doKeyguardLocked(KeyguardViewMediator.java:300)
+      at ...keyguard.KeyguardViewMediator$12.handleMessage(KeyguardViewMediator.java:104)
+
+The NPE is on the SystemUI main thread, so SystemUI crash-loops from the
+start of boot. The visible symptom is a black screen: the window manager has
+FallbackHome as the focused activity, but its window never gets a surface
+(mHasSurface=false isReadyForDisplay()=false), so nothing is ever drawn and
+screencap returns an all-black frame.
+
+This is the same class of bug as the null CentralSurfaces dereference in
+StatusBarKeyguardViewManager, and the same fix: create the wake lock lazily
+instead of assuming the phone code path ran.
+
+--- a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
++++ b/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
+@@ -2123,6 +2123,15 @@ public class KeyguardViewMediator implements RemoteInputController.Callback
+     private void showLocked(Bundle options) {
+         Trace.beginSection("KeyguardViewMediator#showLocked acquiring mShowKeyguardWakeLock");
+         if (DEBUG) Log.d(TAG, "showLocked");
++        // On devices without a keyguard (e.g. Android TV) CentralSurfaces is never
++        // created, so registerCentralSurfaces()/setupLocked() never runs and
++        // mShowKeyguardWakeLock is still null. Create it on demand instead of
++        // crashing SystemUI, which would take the whole UI down.
++        if (mShowKeyguardWakeLock == null) {
++            mShowKeyguardWakeLock = mPM.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
++                    "show keyguard");
++            mShowKeyguardWakeLock.setReferenceCounted(false);
++        }
+         // ensure we stay awake until we are finished displaying the keyguard
+         mShowKeyguardWakeLock.acquire();
+         mLastShowRequest++;
+--
+2.39.5

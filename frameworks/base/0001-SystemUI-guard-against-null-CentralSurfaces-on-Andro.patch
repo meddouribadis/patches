@@ -1,0 +1,107 @@
+From aa577691bf9ecbbe2d6551b0274b539b9d8faec1 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Wed, 30 Sep 2026 23:02:00 +0200
+Subject: [PATCH] SystemUI: guard against null CentralSurfaces on Android TV
+
+Change-Id: If6d994ea33550d82ff06fac3b9d50870a4ae4fc7
+---
+ .../phone/StatusBarKeyguardViewManager.java   | 41 ++++++++++++++-----
+ 1 file changed, 31 insertions(+), 10 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
+index 71e2e405d071..8aa179eb8f4e 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
+@@ -590,12 +590,19 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+      * {@link #needsFullscreenBouncer()}.
+      */
+     protected void showBouncerOrKeyguard(boolean hideBouncerWhenShowing) {
++        if (!mCentralSurfacesRegistered) {
++            return;
++        }
+         if (needsFullscreenBouncer() && !mDozing) {
+             // The keyguard might be showing (already). So we need to hide it.
+-            mCentralSurfaces.hideKeyguard();
++            if (mCentralSurfaces != null) {
++                mCentralSurfaces.hideKeyguard();
++            }
+             mPrimaryBouncerInteractor.show(true);
+         } else {
+-            mCentralSurfaces.showKeyguard();
++            if (mCentralSurfaces != null) {
++                mCentralSurfaces.showKeyguard();
++            }
+             if (hideBouncerWhenShowing) {
+                 hideBouncer(false /* destroyView */);
+             }
+@@ -768,8 +775,13 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+ 
+     @Override
+     public void onStartedWakingUp() {
+-        mCentralSurfaces.getNotificationShadeWindowView().getWindowInsetsController()
+-                .setAnimationsDisabled(false);
++        if (!mCentralSurfacesRegistered || mCentralSurfaces == null) {
++            return;
++        }
++        if (mCentralSurfaces.getNotificationShadeWindowView() != null) {
++            mCentralSurfaces.getNotificationShadeWindowView().getWindowInsetsController()
++                    .setAnimationsDisabled(false);
++        }
+         NavigationBarView navBarView = mCentralSurfaces.getNavigationBarView();
+         if (navBarView != null) {
+             navBarView.forEachView(view ->
+@@ -782,8 +794,13 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+ 
+     @Override
+     public void onStartedGoingToSleep() {
+-        mCentralSurfaces.getNotificationShadeWindowView().getWindowInsetsController()
+-                .setAnimationsDisabled(true);
++        if (!mCentralSurfacesRegistered || mCentralSurfaces == null) {
++            return;
++        }
++        if (mCentralSurfaces.getNotificationShadeWindowView() != null) {
++            mCentralSurfaces.getNotificationShadeWindowView().getWindowInsetsController()
++                    .setAnimationsDisabled(true);
++        }
+         NavigationBarView navBarView = mCentralSurfaces.getNavigationBarView();
+         if (navBarView != null) {
+             navBarView.forEachView(view ->
+@@ -1031,7 +1048,9 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+ 
+     @Override
+     public void dismissAndCollapse() {
+-        mCentralSurfaces.executeRunnableDismissingKeyguard(null, null, true, false, true);
++        if (mCentralSurfaces != null) {
++            mCentralSurfaces.executeRunnableDismissingKeyguard(null, null, true, false, true);
++        }
+     }
+ 
+     /**
+@@ -1060,7 +1079,9 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+             return;
+         }
+ 
+-        mCentralSurfaces.endAffordanceLaunch();
++        if (mCentralSurfaces != null) {
++            mCentralSurfaces.endAffordanceLaunch();
++        }
+         // The second condition is for SIM card locked bouncer
+         if (primaryBouncerIsScrimmed() && !needsFullscreenBouncer()) {
+             hideBouncer(false);
+@@ -1070,11 +1091,11 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+              * of the notification panel. We decide whether to kick this animation off
+              * by computing the hideImmediately boolean.
+              */
+-            boolean hideImmediately = mCentralSurfaces.shouldKeyguardHideImmediately();
++            boolean hideImmediately = mCentralSurfaces != null && mCentralSurfaces.shouldKeyguardHideImmediately();
+             reset(hideImmediately);
+             if (hideImmediately) {
+                 mStatusBarStateController.setLeaveOpenOnKeyguardHide(false);
+-            } else {
++            } else if (mNotificationPanelViewController != null) {
+                 mNotificationPanelViewController.expandShadeToNotifications();
+             }
+         }
+-- 
+2.55.0
+

@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 00:35:00 +0200
+Subject: [PATCH] SystemUI: bail out of KeyguardViewMediator#handleShow when
+ there is no keyguard
+
+On Android TV there is no keyguard: CentralSurfaces is never instantiated, so
+the notification shade, StatusBarKeyguardViewManager and the keyguard view all
+stay null.
+
+PhoneWindowManager.systemReady() nevertheless routes into KeyguardService and
+then onSystemReady() -> doKeyguardLocked() -> showLocked(), which posts SHOW to
+the mediator's handler. handleShow() then dereferences those phone-only objects
+and NPEs on the SystemUI main thread, so SystemUI crash-loops from early boot
+and the screen stays black: FallbackHome is the focused activity, but its window
+never receives a surface (mHasSurface=false isReadyForDisplay()=false), so
+screencap returns an all-black frame.
+
+The NPEs surface one at a time as each layer is reached:
+
+  #00 StatusBarKeyguardViewManager.reset -> NotificationPanelViewController.resetViews
+  #00 ShadeControllerImpl.instantCollapseShade -> NotificationPanelViewController.instantCollapse
+
+Guarding handleShow() on mCentralSurfaces short-circuits all of them at the
+entry point instead of patching each call site. This follows the existing
+null-CentralSurfaces guard in StatusBarKeyguardViewManager, and the lazy
+mShowKeyguardWakeLock creation in the previous patch (showLocked() runs before
+handleShow() and needs the wake lock either way).
+
+--- a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
++++ b/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
+@@ -2558,6 +2558,15 @@ public class KeyguardViewMediator implements RemoteInputController.Callback
+                 if (DEBUG) Log.d(TAG, "handleShow");
+             }
+ 
++            // On devices without a keyguard (Android TV) there is no CentralSurfaces
++            // and therefore no notification shade, no StatusBarKeyguardViewManager and
++            // no keyguard view. Everything below reaches into those and NPEs on the
++            // main thread, crash-looping SystemUI and leaving a black screen. There is
++            // nothing to show, so return instead of dereferencing them.
++            if (mCentralSurfaces == null) {
++                if (DEBUG) Log.d(TAG, "ignoring handleShow, no keyguard on this device.");
++                return;
++            }
++
+             mKeyguardExitAnimationRunner = null;
+             mWakeAndUnlocking = false;
+             setPendingLock(false);

@@ -1,0 +1,26 @@
+From ad8f64ee8efd450a92859363b2d4c2bd7c1e6c3d Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 03:43:44 +0200
+Subject: [PATCH] LeanbackIME: install to system_ext
+
+Change-Id: I0588a96aa8461112ecc4b86c01fd280496b237ee
+---
+ Android.bp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Android.bp b/Android.bp
+index 9fae49d..370bee2 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -21,7 +21,7 @@ version_code = "100"
+ android_app {
+     name: "LeanbackIME",
+ 
+-    product_specific: true,
++    system_ext_specific: true,
+ 
+     sdk_version: "system_current",
+ 
+-- 
+2.55.0
+

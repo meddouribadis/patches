@@ -1,0 +1,150 @@
+From 61c64bd9ccb2abc6e78ab7e15b32a4eb0e98826c Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 03:14:57 +0200
+Subject: [PATCH] bta_hh: select LE HID for BLE devices and fix maint_dev
+ add_device
+
+Change-Id: I5781fc878e0420f68b18941740295467ecec678e
+---
+ system/bta/hh/bta_hh_act.cc | 51 +++++++++++++++++++++++++++++++++++--
+ system/bta/hh/bta_hh_le.cc  | 31 ++++++++++++++++++++++
+ 2 files changed, 80 insertions(+), 2 deletions(-)
+
+diff --git a/system/bta/hh/bta_hh_act.cc b/system/bta/hh/bta_hh_act.cc
+index e768975167..bf1132b72a 100644
+--- a/system/bta/hh/bta_hh_act.cc
++++ b/system/bta/hh/bta_hh_act.cc
+@@ -38,6 +38,10 @@
+ #include "osi/include/log.h"
+ #include "osi/include/osi.h"  // UNUSED_ATTR
+ #include "stack/include/bt_hdr.h"
++#include "stack/include/acl_api.h"
++#include "stack/include/bt_device_type.h"
++#include "stack/include/btm_api.h"
++#include "stack/include/btm_api_types.h"
+ #include "stack/include/hiddefs.h"
+ #include "stack/include/hidh_api.h"
+ #include "types/raw_address.h"
+@@ -312,7 +316,39 @@ void bta_hh_start_sdp(tBTA_HH_DEV_CB* p_cb, const tBTA_HH_DATA* p_data) {
+   p_cb->mode = p_data->api_conn.mode;
+   bta_hh_cb.p_cur = p_cb;
+ 
+-  if (BTM_UseLeLink(p_data->api_conn.bd_addr)) {
++  /* karat: pick the transport ourselves for devices we know are BLE-only.
++   *
++   * BTM_UseLeLink() (stack/btm/btm_ble.cc) checks for a BR/EDR ACL FIRST and
++   * returns false on any BR/EDR link, even a stale one, only consulting the
++   * device type as a last-resort fallback. The AR remote for the Fire TV Stick
++   * 4K is LE-only (its link key type has no BR component and dumpsys reports
++   * "LE: PENC PID LENC LID"), so a stale BR/EDR ACL makes us open a classic L2CAP
++   * HID channel, which the remote refuses:
++   *
++   *   BTA_HH_OPN_EVT: handle=16, status =6   (BTA_HH_ERR)
++   *
++   * There is no retry over LE after that, so the remote never produces input.
++   * bta_hh_le.cc (the LE HID-over-GATT host) is compiled in and works fine; it
++   * just never gets selected. Prefer LE when the controller reports the device
++   * as BLE-only, and only then ask BTM_UseLeLink().
++   */
++  const RawAddress& addr = p_data->api_conn.bd_addr;
++  tBT_DEVICE_TYPE dev_type = BT_DEVICE_TYPE_UNKNOWN;
++  tBLE_ADDR_TYPE addr_type = BLE_ADDR_PUBLIC;
++  BTM_ReadDevInfo(addr, &dev_type, &addr_type);
++  const bool device_is_ble_only = (dev_type == BT_DEVICE_TYPE_BLE);
++
++  bool use_le = device_is_ble_only ? true : BTM_UseLeLink(addr);
++
++  LOG_INFO("[karat-hid] %s connect: acl_bredr=%d acl_le=%d dev_type=0x%02x "
++           "device_is_ble_only=%d BTM_UseLeLink=%d -> %s",
++           addr.ToString().c_str(),
++           BTM_IsAclConnectionUp(addr, BT_TRANSPORT_BR_EDR) ? 1 : 0,
++           BTM_IsAclConnectionUp(addr, BT_TRANSPORT_LE) ? 1 : 0, dev_type,
++           device_is_ble_only ? 1 : 0, BTM_UseLeLink(addr) ? 1 : 0,
++           use_le ? "LE (HID over GATT)" : "classic (L2CAP HID)");
++
++  if (use_le) {
+     p_cb->is_le_device = true;
+     bta_hh_le_open_conn(p_cb, p_data->api_conn.bd_addr);
+     return;
+@@ -935,7 +971,18 @@ void bta_hh_maint_dev_act(tBTA_HH_DEV_CB* p_cb, const tBTA_HH_DATA* p_data) {
+       dev_info.bda = p_dev_info->bda;
+       /* initialize callback data */
+       if (p_cb->hid_handle == BTA_HH_INVALID_HANDLE) {
+-        if (BTM_UseLeLink(p_data->api_conn.bd_addr)) {
++        const RawAddress& addr = p_dev_info->bda;
++        tBT_DEVICE_TYPE dev_type = BT_DEVICE_TYPE_UNKNOWN;
++        tBLE_ADDR_TYPE addr_type = BLE_ADDR_PUBLIC;
++        BTM_ReadDevInfo(addr, &dev_type, &addr_type);
++        const bool device_is_ble_only = (dev_type == BT_DEVICE_TYPE_BLE);
++        bool use_le = device_is_ble_only ? true : BTM_UseLeLink(addr);
++
++        LOG_INFO("[karat-hid] add_dev: bda=%s dev_type=0x%02x is_ble=%d use_le=%d",
++                 addr.ToString().c_str(), dev_type, device_is_ble_only ? 1 : 0,
++                 use_le ? 1 : 0);
++
++        if (use_le) {
+           p_cb->is_le_device = true;
+           dev_info.handle = bta_hh_le_add_device(p_cb, p_dev_info);
+           if (dev_info.handle != BTA_HH_INVALID_HANDLE)
+diff --git a/system/bta/hh/bta_hh_le.cc b/system/bta/hh/bta_hh_le.cc
+index ffcbf7f9b4..56ad95ea03 100644
+--- a/system/bta/hh/bta_hh_le.cc
++++ b/system/bta/hh/bta_hh_le.cc
+@@ -271,6 +271,10 @@ void bta_hh_le_open_conn(tBTA_HH_DEV_CB* p_cb, const RawAddress& remote_bda) {
+   bta_hh_cb.le_cb_index[BTA_HH_GET_LE_CB_IDX(p_cb->hid_handle)] = p_cb->index;
+   p_cb->in_use = true;
+ 
++  /* karat: see bta_hh_gatt_open() - the LE path logs nothing in a release build. */
++  LOG_INFO("[karat-hid] le_open_conn bda=%s gatt_if=%d transport=DIRECT_CONNECT",
++           remote_bda.ToString().c_str(), bta_hh_cb.gatt_if);
++
+   BTA_GATTC_Open(bta_hh_cb.gatt_if, remote_bda, BTM_BLE_DIRECT_CONNECTION,
+                  false);
+ }
+@@ -1073,9 +1077,25 @@ void bta_hh_start_security(tBTA_HH_DEV_CB* p_cb,
+   if (BTM_SecIsSecurityPending(p_cb->addr)) {
+     /* if security collision happened, wait for encryption done */
+     p_cb->security_pending = true;
++    LOG_INFO("[karat-hid] security: PENDING, deferring (bda=%s)",
++             p_cb->addr.ToString().c_str());
+     return;
+   }
+ 
++  /* karat: this path is silent in a release build (APPL_TRACE_DEBUG is gated), and it
++   * decides whether the LE HID connection can read the HID characteristics at all.
++   * Report which branch is taken.
++   */
++  LOG_INFO("[karat-hid] security: bda=%s encrypted=%d link_key_known=%d -> %s",
++           p_cb->addr.ToString().c_str(),
++           BTM_IsEncrypted(p_cb->addr, BT_TRANSPORT_LE) ? 1 : 0,
++           BTM_IsLinkKeyKnown(p_cb->addr, BT_TRANSPORT_LE) ? 1 : 0,
++           BTM_IsEncrypted(p_cb->addr, BT_TRANSPORT_LE)
++               ? "already encrypted, proceed to discovery"
++               : (BTM_IsLinkKeyKnown(p_cb->addr, BT_TRANSPORT_LE)
++                      ? "bonded, requesting encryption (MITM)"
++                      : "not bonded, requesting encryption (NO_MITM)"));
++
+   /* if link has been encrypted */
+   if (BTM_IsEncrypted(p_cb->addr, BT_TRANSPORT_LE)) {
+     p_cb->status = BTA_HH_OK;
+@@ -1119,6 +1139,17 @@ void bta_hh_gatt_open(tBTA_HH_DEV_CB* p_cb, const tBTA_HH_DATA* p_buf) {
+       ((p2[0]) << 24) + ((p2[1]) << 16) + ((p2[2]) << 8) + (p2[3]),
+       ((p2[4]) << 8) + p2[5], p_data->status);
+ 
++  /* karat: APPL_TRACE_DEBUG is gated behind appl_trace_level >= DEBUG, which is off in a
++   * release build, so the LE HID path is completely silent when it fails. This is a
++   * LOG_INFO so the GATT open result is always visible. A failure here is reported
++   * to the profile as BTA_HH_ERR, which is exactly the status=6 seen from
++   * btif_hh_upstreams_evt.
++   */
++  LOG_INFO("[karat-hid] gatt_open bda=%s status=%d (%s) conn_id=%d hid_handle=0x%02x",
++           p_cb->addr.ToString().c_str(), p_data->status,
++           p_data->status == GATT_SUCCESS ? "GATT_SUCCESS" : "FAILED", p_data->conn_id,
++           p_cb->hid_handle);
++
+   if (p_data->status == GATT_SUCCESS) {
+     p_cb->hid_handle = bta_hh_le_get_le_dev_hdl(p_cb->index);
+     if (p_cb->hid_handle == BTA_HH_IDX_INVALID) {
+-- 
+2.55.0
+

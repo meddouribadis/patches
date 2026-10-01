@@ -1,0 +1,31 @@
+From ec5ecea5d1e854d4a425e7db3675ee7ec28e5ad7 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 03:15:18 +0200
+Subject: [PATCH] BluetoothScanner: allow unnamed devices and set fallback name
+
+Change-Id: Ic77f7ac8acc78d8ca8dbcec072ba39325fa19616
+---
+ .../android/tv/settings/util/bluetooth/BluetoothScanner.java | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothScanner.java b/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothScanner.java
+index 81ed7cbd5..c3d8b1cc6 100644
+--- a/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothScanner.java
++++ b/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothScanner.java
+@@ -375,9 +375,12 @@ public class BluetoothScanner {
+                     Log.d(TAG, "Device found, address: " + address + " name: \"" + name + "\"");
+                 }
+ 
+-                if (address == null || name == null) {
++                if (address == null) {
+                     return;
+                 }
++                if (name == null || name.isEmpty()) {
++                    name = "Fire TV Remote";
++                }
+ 
+                 // Older Bluetooth stacks may append a null character to a device name
+                 if (name.endsWith("\0")) {
+-- 
+2.55.0
+

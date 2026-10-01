@@ -1,0 +1,83 @@
+From 3f0a1c2d5e6b7a8c9d0e1f2a3b4c5d6e7f8091a2b Mon Sep 17 00:00:00 2001
+From: karat port <noreply@example.invalid>
+Subject: [PATCH] gd: do not abort the Bluetooth stack when a scan command fails
+
+The MT7961 controller on karat rejects LE_SET_EXTENDED_SCAN_ENABLE with
+INVALID_HCI_COMMAND_PARAMETERS. check_status() treated any non-success status
+as fatal (ASSERT_LOG), so the whole com.android.bluetooth process aborted,
+init restarted it, and it scanned again immediately - a crash loop that made
+the adapter unusable and left no HID remote able to attach, bonded or not.
+
+Forcing ScanApiType::LEGACY is not a workaround either: on this controller
+the command-complete event that arrives does not match the opcode the layer
+is waiting for, so the "waiting_command_ == op_code" assertion aborts first.
+(The runtime override bluetooth.hci.disabled_commands=375,376 was tried and
+reproduced exactly that.)
+
+So treat a rejected scan-enable as a failed scan rather than a fatal error:
+log it, correct the is_scanning_ bookkeeping, and let the stack stay up. BLE
+discovery on karat then reports no results, while everything else keeps
+working - bonded HID devices, A2DP, the paired Fire TV remote.
+
+Applied as patches/0006, on top of the karat Bluetooth stack (0003-0005).
+---
+ system/gd/hci/le_scanning_manager.cc | 26 ++++++++++++++++++++++-----
+ 1 file changed, 22 insertions(+), 4 deletions(-)
+
+diff --git a/system/gd/hci/le_scanning_manager.cc b/system/gd/hci/le_scanning_manager.cc
+index d48c900a51..a3a11f51cf 100644
+--- a/system/gd/hci/le_scanning_manager.cc
++++ b/system/gd/hci/le_scanning_manager.cc
+@@ -1619,27 +1619,41 @@ struct LeScanningManager::impl : public LeAddressManagerCallback {
+   std::unordered_map<uint8_t, ScannerId> tracker_id_map_;
+   uint16_t total_num_of_advt_tracked_ = 0x00;
+ 
+-  static void check_status(CommandCompleteView view) {
++  /* Returns true when the controller accepted the scan-enable command.
++   *
++   * A controller is allowed to refuse a scan request, and karat's MT7961 does
++   * exactly that (INVALID_HCI_COMMAND_PARAMETERS for extended scan enable).
++   * That must only fail the scan, not abort the stack: the abort used to kill
++   * com.android.bluetooth in a loop on every Play-services BLE scan, which
++   * left the stick with no working Bluetooth at all (no remote could attach). */
++  bool check_status(CommandCompleteView view) {
+     switch (view.GetCommandOpCode()) {
+       case (OpCode::LE_SET_SCAN_ENABLE): {
+         auto status_view = LeSetScanEnableCompleteView::Create(view);
+         ASSERT(status_view.IsValid());
+-        ASSERT_LOG(
+-            status_view.GetStatus() == ErrorCode::SUCCESS,
+-            "Receive set scan enable with error code %s",
+-            ErrorCodeText(status_view.GetStatus()).c_str());
++        if (status_view.GetStatus() != ErrorCode::SUCCESS) {
++          LOG_WARN(
++              "Receive set scan enable with error code %s; scan aborted, continuing without BLE scanning",
++              ErrorCodeText(status_view.GetStatus()).c_str());
++          is_scanning_ = false;
++          return false;
++        }
+       } break;
+       case (OpCode::LE_SET_EXTENDED_SCAN_ENABLE): {
+         auto status_view = LeSetExtendedScanEnableCompleteView::Create(view);
+         ASSERT(status_view.IsValid());
+-        ASSERT_LOG(
+-            status_view.GetStatus() == ErrorCode::SUCCESS,
+-            "Receive set extended scan enable with error code %s",
+-            ErrorCodeText(status_view.GetStatus()).c_str());
++        if (status_view.GetStatus() != ErrorCode::SUCCESS) {
++          LOG_WARN(
++              "Receive set extended scan enable with error code %s; scan aborted, continuing without BLE scanning",
++              ErrorCodeText(status_view.GetStatus()).c_str());
++          is_scanning_ = false;
++          return false;
++        }
+       } break;
+       default:
+         LOG_ALWAYS_FATAL("Unhandled event %s", OpCodeText(view.GetCommandOpCode()).c_str());
+     }
++    return true;
+   }
+ };
+ 
+-- 
+2.47.3

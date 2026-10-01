@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 10:30:00 +0200
+Subject: [PATCH] BluetoothSetupActivity: fix subactivity lifecycle and skip if input present
+
+1. Call startSubactivity() instead of startActivityForResult() so
+   mRequestCode is set and subactivity results are forwarded properly.
+2. Check if a physical input device (dpad, gamepad, or full keyboard)
+   is already connected, and if so, skip bluetooth pairing immediately.
+3. Handle onSubactivityCanceled() to advance to nextAction(RESULT_OK)
+   (Welcome screen) when the user skips/backs out of accessory pairing.
+4. Remove improper getSubactivityNextTransition() override.
+
+---
+ .../lineageos/setupwizard/BluetoothSetupActivity.java | 34 +++++++++++++++----
+ 1 file changed, 28 insertions(+), 6 deletions(-)
+
+diff --git a/src/org/lineageos/setupwizard/BluetoothSetupActivity.java b/src/org/lineageos/setupwizard/BluetoothSetupActivity.java
+index ad82ae6..2c200a7 100644
+--- a/src/org/lineageos/setupwizard/BluetoothSetupActivity.java
++++ b/src/org/lineageos/setupwizard/BluetoothSetupActivity.java
+@@ -20,7 +20,9 @@ package org.lineageos.setupwizard;
+ import static org.lineageos.setupwizard.SetupWizardApp.REQUEST_CODE_SETUP_BLUETOOTH;
+ 
+ import android.content.Intent;
++import android.hardware.input.InputManager;
+ import android.util.Log;
++import android.view.InputDevice;
+ 
+ import org.lineageos.setupwizard.util.SetupWizardUtils;
+ 
+@@ -35,12 +37,19 @@ public class BluetoothSetupActivity extends WrapperSubBaseActivity {
+ 
+     @Override
+     protected void onStartSubactivity() {
++        if (hasInputDevice()) {
++            Log.d(TAG, "Input device already present, skipping bluetooth setup");
++            nextAction(RESULT_OK);
++            finish();
++            return;
++        }
++
+         try {
+             Intent intent = new Intent();
+             intent.setComponent(SetupWizardUtils.sTvAddAccessorySettingsActivity);
+             intent.setAction(ACTION_CONNECT_INPUT);
+             intent.putExtra(INTENT_EXTRA_NO_INPUT_MODE, true);
+-            startActivityForResult(intent, REQUEST_CODE_SETUP_BLUETOOTH);
++            startSubactivity(intent, REQUEST_CODE_SETUP_BLUETOOTH);
+         } catch (Exception e) {
+             Log.e(TAG, "Error starting bluetooth setup", e);
+             nextAction(RESULT_OK);
+@@ -50,8 +59,25 @@ public class BluetoothSetupActivity extends WrapperSubBaseActivity {
+     }
+ 
+     @Override
+-    protected int getSubactivityNextTransition() {
++    protected void onSubactivityCanceled(Intent data) {
++        // If bluetooth setup was skipped or backed out of, proceed to welcome
+         nextAction(RESULT_OK);
+-        return TRANSITION_ID_SLIDE;
++        finish();
++    }
++
++    private boolean hasInputDevice() {
++        InputManager im = getSystemService(InputManager.class);
++        if (im == null) return false;
++        for (int id : im.getInputDeviceIds()) {
++            InputDevice dev = im.getInputDevice(id);
++            if (dev == null || dev.isVirtual()) continue;
++            int sources = dev.getSources();
++            if ((sources & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD ||
++                    (sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
++                    dev.isFullKeyboard()) {
++                return true;
++            }
++        }
++        return false;
+     }
+ }
+-- 
+2.55.0

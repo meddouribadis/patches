@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 10:30:00 +0200
+Subject: [PATCH] AddAccessoryActivity: set RESULT_OK on pairing complete
+
+When pairing finishes successfully, AddAccessoryActivity must set RESULT_OK
+before finish() so callers (such as LineageSetupWizard BluetoothSetupActivity)
+are notified that input pairing succeeded and can proceed.
+
+---
+ .../tv/settings/accessories/AddAccessoryActivity.java    | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Settings/src/com/android/tv/settings/accessories/AddAccessoryActivity.java b/Settings/src/com/android/tv/settings/accessories/AddAccessoryActivity.java
+index 8a91ea07c..54afdaf95 100644
+--- a/Settings/src/com/android/tv/settings/accessories/AddAccessoryActivity.java
++++ b/Settings/src/com/android/tv/settings/accessories/AddAccessoryActivity.java
+@@ -16,6 +16,7 @@
+ 
+ package com.android.tv.settings.accessories;
+ 
++import android.app.Activity;
+ import android.bluetooth.BluetoothDevice;
+ import android.content.Intent;
+ import android.hardware.hdmi.HdmiControlManager;
+@@ -140,6 +141,7 @@ public class AddAccessoryActivity extends FragmentActivity
+                     activity.updateView();
+                     break;
+                 case MSG_PAIRING_COMPLETE:
++                    activity.setResult(Activity.RESULT_OK);
+                     activity.finish();
+                     break;
+                 case MSG_OP_TIMEOUT:
+-- 
+2.55.0

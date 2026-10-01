@@ -1,16 +1,3 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Badis Meddouri <meddouri.badis@gmail.com>
-Date: Thu, 1 Oct 2026 10:30:00 +0200
-Subject: [PATCH] AddAccessoryActivity: set RESULT_OK on pairing complete
-
-When pairing finishes successfully, AddAccessoryActivity must set RESULT_OK
-before finish() so callers (such as LineageSetupWizard BluetoothSetupActivity)
-are notified that input pairing succeeded and can proceed.
-
----
- .../tv/settings/accessories/AddAccessoryActivity.java    | 2 ++
- 1 file changed, 2 insertions(+)
-
 diff --git a/Settings/src/com/android/tv/settings/accessories/AddAccessoryActivity.java b/Settings/src/com/android/tv/settings/accessories/AddAccessoryActivity.java
 index 8a91ea07c..54afdaf95 100644
 --- a/Settings/src/com/android/tv/settings/accessories/AddAccessoryActivity.java
@@ -31,5 +18,86 @@ index 8a91ea07c..54afdaf95 100644
                      activity.finish();
                      break;
                  case MSG_OP_TIMEOUT:
--- 
-2.55.0
+diff --git a/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java b/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java
+index 3b816a77d..17c2b0485 100644
+--- a/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java
++++ b/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java
+@@ -610,7 +610,8 @@ public class BluetoothDevicePairer {
+ 
+     private void onBonded() {
+         BluetoothDevice target = getTargetDevice();
+-        if (!(target.getBluetoothClass().getDeviceClass()
++        if (target.getBluetoothClass() == null
++                || !(target.getBluetoothClass().getDeviceClass()
+                     == BluetoothClass.Device.PERIPHERAL_POINTING)
+                 || !(target.getType() == BluetoothDevice.DEVICE_TYPE_CLASSIC)) {
+             openConnection();
+@@ -690,9 +691,15 @@ public class BluetoothDevicePairer {
+     }
+ 
+     private BluetoothConnector getBluetoothConnector() {
+-        int majorDeviceClass = mTarget.getBluetoothClass().getMajorDeviceClass();
++        BluetoothClass btClass = mTarget.getBluetoothClass();
++        if (btClass == null) {
++            return new BluetoothInputDeviceConnector(
++                mContext, mTarget, mHandler, mOpenConnectionCallback);
++        }
++        int majorDeviceClass = btClass.getMajorDeviceClass();
+         switch (majorDeviceClass) {
+             case BluetoothClass.Device.Major.PERIPHERAL:
++            case BluetoothClass.Device.Major.UNCATEGORIZED:
+                 return new BluetoothInputDeviceConnector(
+                     mContext, mTarget, mHandler, mOpenConnectionCallback);
+             case BluetoothClass.Device.Major.AUDIO_VIDEO:
+@@ -701,6 +708,7 @@ public class BluetoothDevicePairer {
+                 Log.d(TAG, "Unhandle device class: " + majorDeviceClass);
+                 break;
+         }
+-        return null;
++        return new BluetoothInputDeviceConnector(
++            mContext, mTarget, mHandler, mOpenConnectionCallback);
+     }
+ }
+diff --git a/Settings/src/com/android/tv/settings/accessories/InputDeviceCriteria.java b/Settings/src/com/android/tv/settings/accessories/InputDeviceCriteria.java
+index 1e735c63c..6fbc5f5f7 100644
+--- a/Settings/src/com/android/tv/settings/accessories/InputDeviceCriteria.java
++++ b/Settings/src/com/android/tv/settings/accessories/InputDeviceCriteria.java
+@@ -48,7 +48,14 @@ public class InputDeviceCriteria extends BluetoothDeviceCriteria {
+     }
+ 
+     public boolean isInputDevice(BluetoothClass bluetoothClass) {
+-        return isMatchingMajorDeviceClass(bluetoothClass.getMajorDeviceClass()) &&
++        if (bluetoothClass == null) {
++            return true;
++        }
++        int major = bluetoothClass.getMajorDeviceClass();
++        if (major == BluetoothClass.Device.Major.UNCATEGORIZED) {
++            return true;
++        }
++        return isMatchingMajorDeviceClass(major) &&
+                 isMatchingDeviceClass(bluetoothClass.getDeviceClass());
+     }
+ }
+diff --git a/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothDeviceCriteria.java b/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothDeviceCriteria.java
+index 0d4b8df92..fd782ddaf 100644
+--- a/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothDeviceCriteria.java
++++ b/Settings/src/com/android/tv/settings/util/bluetooth/BluetoothDeviceCriteria.java
+@@ -54,11 +54,16 @@ public class BluetoothDeviceCriteria {
+             return false;
+         }
+ 
+-        if (!isMatchingMajorDeviceClass(device.getBluetoothClass().getMajorDeviceClass())) {
++        BluetoothClass btClass = device.getBluetoothClass();
++        if (btClass == null) {
++            return true;
++        }
++
++        if (!isMatchingMajorDeviceClass(btClass.getMajorDeviceClass())) {
+             return false;
+         }
+ 
+-        if (!isMatchingDeviceClass(device.getBluetoothClass().getDeviceClass())) {
++        if (!isMatchingDeviceClass(btClass.getDeviceClass())) {
+             return false;
+         }
+ 

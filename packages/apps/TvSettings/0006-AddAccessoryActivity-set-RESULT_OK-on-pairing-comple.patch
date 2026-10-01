@@ -19,10 +19,21 @@ index 8a91ea07c..54afdaf95 100644
                      break;
                  case MSG_OP_TIMEOUT:
 diff --git a/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java b/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java
-index 3b816a77d..17c2b0485 100644
+index 3b816a77d..5c0814fe0 100644
 --- a/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java
 +++ b/Settings/src/com/android/tv/settings/accessories/BluetoothDevicePairer.java
-@@ -610,7 +610,8 @@ public class BluetoothDevicePairer {
+@@ -513,8 +513,9 @@ public class BluetoothDevicePairer {
+     private void onDeviceFound(BluetoothDevice device) {
+         if (!mVisibleDevices.contains(device)) {
+             mVisibleDevices.add(device);
++            BluetoothClass btClass = device.getBluetoothClass();
+             Log.d(TAG, "Added device to visible list. Name = " + device.getName() + " , class = " +
+-                    device.getBluetoothClass().getDeviceClass());
++                    (btClass != null ? btClass.getDeviceClass() : "null"));
+         } else {
+             return;
+         }
+@@ -610,7 +611,8 @@ public class BluetoothDevicePairer {
  
      private void onBonded() {
          BluetoothDevice target = getTargetDevice();
@@ -32,7 +43,7 @@ index 3b816a77d..17c2b0485 100644
                      == BluetoothClass.Device.PERIPHERAL_POINTING)
                  || !(target.getType() == BluetoothDevice.DEVICE_TYPE_CLASSIC)) {
              openConnection();
-@@ -690,9 +691,15 @@ public class BluetoothDevicePairer {
+@@ -690,9 +692,15 @@ public class BluetoothDevicePairer {
      }
  
      private BluetoothConnector getBluetoothConnector() {
@@ -49,7 +60,7 @@ index 3b816a77d..17c2b0485 100644
                  return new BluetoothInputDeviceConnector(
                      mContext, mTarget, mHandler, mOpenConnectionCallback);
              case BluetoothClass.Device.Major.AUDIO_VIDEO:
-@@ -701,6 +708,7 @@ public class BluetoothDevicePairer {
+@@ -701,6 +709,7 @@ public class BluetoothDevicePairer {
                  Log.d(TAG, "Unhandle device class: " + majorDeviceClass);
                  break;
          }

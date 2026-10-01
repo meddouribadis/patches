@@ -1,0 +1,15 @@
+diff --git a/Settings/AndroidManifest.xml b/Settings/AndroidManifest.xml
+index fade39f55..adc0383ca 100644
+--- a/Settings/AndroidManifest.xml
++++ b/Settings/AndroidManifest.xml
+@@ -32,6 +32,10 @@
+     <uses-permission android:name="android.permission.BLUETOOTH"/>
+     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+     <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED"/>
++    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
++        android:usesPermissionFlags="neverForLocation" />
++    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
++    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
+     <uses-permission android:name="android.permission.CLEAR_APP_USER_DATA"/>
+     <uses-permission android:name="android.permission.DELETE_CACHE_FILES"/>

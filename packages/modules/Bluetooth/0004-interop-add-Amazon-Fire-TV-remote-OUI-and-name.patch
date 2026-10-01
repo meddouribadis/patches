@@ -1,0 +1,28 @@
+diff --git a/system/device/include/interop_database.h b/system/device/include/interop_database.h
+index b6c509daa7..b429d6c04f 100644
+--- a/system/device/include/interop_database.h
++++ b/system/device/include/interop_database.h
+@@ -42,6 +42,7 @@ static const interop_addr_entry_t interop_addr_database[] = {
+      INTEROP_DISABLE_LE_SECURE_CONNECTIONS},
+     {{{0xac, 0x9e, 0x17, 0, 0, 0}}, 3, INTEROP_DISABLE_LE_SECURE_CONNECTIONS},
+     {{{0xf0, 0x79, 0x59, 0, 0, 0}}, 3, INTEROP_DISABLE_LE_SECURE_CONNECTIONS},
++    {{{0x84, 0x28, 0x59, 0, 0, 0}}, 3, INTEROP_DISABLE_LE_SECURE_CONNECTIONS},
+ 
+     {{{0x08, 0x62, 0x66, 0, 0, 0}}, 3, INTEROP_HID_PREF_CONN_SUP_TIMEOUT_3S},
+     {{{0x38, 0x2c, 0x4a, 0xc9, 0, 0}}, 4, INTEROP_HID_PREF_CONN_SUP_TIMEOUT_3S},
+@@ -49,6 +50,7 @@ static const interop_addr_entry_t interop_addr_database[] = {
+     {{{0x54, 0xa0, 0x50, 0xd9, 0, 0}}, 4, INTEROP_HID_PREF_CONN_SUP_TIMEOUT_3S},
+     {{{0xac, 0x9e, 0x17, 0, 0, 0}}, 3, INTEROP_HID_PREF_CONN_SUP_TIMEOUT_3S},
+     {{{0xf0, 0x79, 0x59, 0, 0, 0}}, 3, INTEROP_HID_PREF_CONN_SUP_TIMEOUT_3S},
++    {{{0x84, 0x28, 0x59, 0, 0, 0}}, 3, INTEROP_HID_PREF_CONN_SUP_TIMEOUT_3S},
+ 
+     // Ausdom M05 - unacceptably loud volume
+     {{{0xa0, 0xe9, 0xdb, 0, 0, 0}}, 3, INTEROP_DISABLE_ABSOLUTE_VOLUME},
+@@ -269,4 +271,7 @@ static const interop_name_entry_t interop_name_database[] = {
+     // dynamically. They require custom HID report command to change mode.
+     {"Pro Controller", 14, INTEROP_HID_HOST_LIMIT_SNIFF_INTERVAL},
+     {"Joy-Con", 7, INTEROP_HID_HOST_LIMIT_SNIFF_INTERVAL},
++
++    // Amazon Fire TV Remote (AR)
++    {"AR", 2, INTEROP_DISABLE_LE_SECURE_CONNECTIONS},
+ };

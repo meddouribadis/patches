@@ -1,0 +1,38 @@
+From 5d0f061cb218e4a6c375fabb7f1dd0e49aed4e63 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 04:15:58 +0200
+Subject: [PATCH] init: allow init to mounton vendor audio files
+
+Change-Id: I100089e6b7031c1c1bc36916b0b67caf1d9fb0c2
+---
+ prebuilts/api/33.0/private/init.te | 4 ++++
+ private/init.te                    | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/prebuilts/api/33.0/private/init.te b/prebuilts/api/33.0/private/init.te
+index 17e25f895..255156b80 100644
+--- a/prebuilts/api/33.0/private/init.te
++++ b/prebuilts/api/33.0/private/init.te
+@@ -124,3 +124,7 @@ allow init {
+   -kvm_device
+   -port_device
+ }:chr_file setattr;
++
++# Allow init to bind-mount audio policy and stub libms12 over stock vendor files
++allow init vendor_configs_file:file mounton;
++allow init vendor_file:file mounton;
+diff --git a/private/init.te b/private/init.te
+index 17e25f895..255156b80 100644
+--- a/private/init.te
++++ b/private/init.te
+@@ -124,3 +124,7 @@ allow init {
+   -kvm_device
+   -port_device
+ }:chr_file setattr;
++
++# Allow init to bind-mount audio policy and stub libms12 over stock vendor files
++allow init vendor_configs_file:file mounton;
++allow init vendor_file:file mounton;
+-- 
+2.55.0
+

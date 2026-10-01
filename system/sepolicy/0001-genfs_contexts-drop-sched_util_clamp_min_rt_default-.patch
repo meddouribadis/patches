@@ -1,0 +1,27 @@
+From a767b646e2be04c924d6dfd16c7f861bb204ee89 Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 03:21:31 +0200
+Subject: [PATCH] genfs_contexts: drop sched_util_clamp_min_rt_default
+ conflicting with MT8696 vendor
+
+Change-Id: I669eeee7473ed23d755cd1494ec3d85593939447
+---
+ private/genfs_contexts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/private/genfs_contexts b/private/genfs_contexts
+index 65784709c..cfd495dd4 100644
+--- a/private/genfs_contexts
++++ b/private/genfs_contexts
+@@ -72,7 +72,7 @@ genfscon proc /sys/kernel/sched_schedstats u:object_r:proc_sched:s0
+ genfscon proc /sys/kernel/sched_tunable_scaling u:object_r:proc_sched:s0
+ genfscon proc /sys/kernel/sched_util_clamp_max u:object_r:proc_sched:s0
+ genfscon proc /sys/kernel/sched_util_clamp_min u:object_r:proc_sched:s0
+-genfscon proc /sys/kernel/sched_util_clamp_min_rt_default u:object_r:proc_sched:s0
++# genfscon proc /sys/kernel/sched_util_clamp_min_rt_default u:object_r:proc_sched:s0 # conflict with MT8696 stock vendor
+ genfscon proc /sys/kernel/sched_wakeup_granularity_ns u:object_r:proc_sched:s0
+ genfscon proc /sys/kernel/sysrq u:object_r:proc_sysrq:s0
+ genfscon proc /sys/kernel/unprivileged_bpf_ u:object_r:proc_bpf:s0
+-- 
+2.55.0
+

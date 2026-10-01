@@ -58,6 +58,37 @@ index 3b816a77d..17c2b0485 100644
 +            mContext, mTarget, mHandler, mOpenConnectionCallback);
      }
  }
+diff --git a/Settings/src/com/android/tv/settings/accessories/BluetoothInputDeviceConnector.java b/Settings/src/com/android/tv/settings/accessories/BluetoothInputDeviceConnector.java
+index 35ee976fd..cd80c778f 100644
+--- a/Settings/src/com/android/tv/settings/accessories/BluetoothInputDeviceConnector.java
++++ b/Settings/src/com/android/tv/settings/accessories/BluetoothInputDeviceConnector.java
+@@ -46,7 +46,9 @@ public class BluetoothInputDeviceConnector implements BluetoothDevicePairer.Blue
+             Log.w(TAG, "Service disconnected, perhaps unexpectedly");
+             unregisterInputMethodMonitor();
+             closeInputProfileProxy();
+-            mOpenConnectionCallback.failed();
++            if (!mSuccessCalled) {
++                mOpenConnectionCallback.failed();
++            }
+         }
+ 
+         @Override
+@@ -72,6 +74,7 @@ public class BluetoothInputDeviceConnector implements BluetoothDevicePairer.Blue
+ 
+     private BluetoothHidHost mInputProxy;
+     private boolean mInputMethodMonitorRegistered = false;
++    private boolean mSuccessCalled = false;
+ 
+     private BluetoothDevice mTarget;
+     private Context mContext;
+@@ -113,6 +116,7 @@ public class BluetoothInputDeviceConnector implements BluetoothDevicePairer.Blue
+     };
+ 
+     private void onInputAdded() {
++        mSuccessCalled = true;
+         unregisterInputMethodMonitor();
+         closeInputProfileProxy();
+         mOpenConnectionCallback.succeeded();
 diff --git a/Settings/src/com/android/tv/settings/accessories/InputDeviceCriteria.java b/Settings/src/com/android/tv/settings/accessories/InputDeviceCriteria.java
 index 1e735c63c..6fbc5f5f7 100644
 --- a/Settings/src/com/android/tv/settings/accessories/InputDeviceCriteria.java

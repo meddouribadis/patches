@@ -1,0 +1,44 @@
+From 9669f3403aecf916b07683f59b1eea933e2a692f Mon Sep 17 00:00:00 2001
+From: Badis Meddouri <meddouri.badis@gmail.com>
+Date: Thu, 1 Oct 2026 21:21:55 +0200
+Subject: [PATCH] DisplayModeDirector: default to no display mode switching
+
+On karat the HDMI driver fully re-syncs the link on every mode change, even
+between modes that share a config group (59.94 <-> 60 Hz). The hdmi_audio
+switch goes down for about two seconds, WiredAccessoryManager removes the HDMI
+audio device, and any direct (passthrough) AudioTrack is invalidated. Players
+such as Plex only retry for ~100 ms and then give up, freezing playback.
+
+Default mModeSwitchingType to SWITCHING_TYPE_NONE. Users can still enable
+frame-rate matching via Settings.Secure.MATCH_CONTENT_FRAME_RATE.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+Change-Id: If87b3b78d18c5c65025c5030fa6aac4a4b148aaf
+---
+ .../com/android/server/display/DisplayModeDirector.java   | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/display/DisplayModeDirector.java b/services/core/java/com/android/server/display/DisplayModeDirector.java
+index 8c83be3ea8dd..e9e9917f3237 100644
+--- a/services/core/java/com/android/server/display/DisplayModeDirector.java
++++ b/services/core/java/com/android/server/display/DisplayModeDirector.java
+@@ -142,9 +142,15 @@ public class DisplayModeDirector {
+ 
+     /**
+      * The allowed refresh rate switching type. This is used by SurfaceFlinger.
++     *
++     * Defaults to NONE rather than WITHIN_GROUPS: on karat the HDMI driver fully re-syncs the
++     * link (AV mute, TMDS off, hdmi_audio switch down for ~2 s) on every mode change, including
++     * the 59.94 <-> 60 Hz switch the framework considers seamless. That removes the HDMI audio
++     * device and kills direct (passthrough) tracks. The user can still opt in through
++     * Settings.Secure.MATCH_CONTENT_FRAME_RATE.
+      */
+     @DisplayManager.SwitchingType
+-    private int mModeSwitchingType = DisplayManager.SWITCHING_TYPE_WITHIN_GROUPS;
++    private int mModeSwitchingType = DisplayManager.SWITCHING_TYPE_NONE;
+ 
+     public DisplayModeDirector(@NonNull Context context, @NonNull Handler handler) {
+         this(context, handler, new RealInjector(context));
+-- 
+2.55.0
+

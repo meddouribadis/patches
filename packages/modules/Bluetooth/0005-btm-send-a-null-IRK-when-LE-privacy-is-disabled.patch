@@ -1,0 +1,63 @@
+From: karat port <noreply@example.invalid>
+Subject: [PATCH] btm: send a null IRK when LE privacy is disabled
+
+The Fire TV remote only reconnects on its own after a host reboot when the
+host runs with LE privacy off and distributes a null IRK (what Fire OS does).
+With a real IRK the remote ignores the host's identity-address connection
+requests and needs the Home button held to re-pair.
+
+BTM_GetDeviceIDRoot() feeds both the SMP identity-information PDU and the
+resolving-list local IRK (get_local_irk), so return zeros there when
+bluetooth.core.gap.le.privacy.enabled=false.
+
+---
+diff --git a/system/stack/btm/btm_ble.cc b/system/stack/btm/btm_ble.cc
+index 212a9d7ac8..66a6cb90f5 100644
+--- a/system/stack/btm/btm_ble.cc
++++ b/system/stack/btm/btm_ble.cc
+@@ -28,6 +28,7 @@
+ #include <base/logging.h>
+ 
+ #include <cstdint>
++#include <cstring>
+ 
+ #include "device/include/controller.h"
+ #include "main/shim/btm_api.h"
+@@ -219,6 +220,16 @@ const Octet16& BTM_GetDeviceEncRoot() {
+ 
+ /** Returns local device identity root (IR). */
+ const Octet16& BTM_GetDeviceIDRoot() {
++  /* With LE privacy disabled the Fire TV remote only reconnects to hosts that
++   * distribute a null IRK (as Fire OS does); a real IRK makes it ignore the
++   * host's identity-address connection requests after a reboot. */
++  static const Octet16 kNullIrk = {};
++  char privacy[PROPERTY_VALUE_MAX] = "true";
++  if (osi_property_get("bluetooth.core.gap.le.privacy.enabled", privacy,
++                       "true") &&
++      !strcmp(privacy, "false")) {
++    return kNullIrk;
++  }
+   if (bluetooth::shim::is_gd_shim_enabled()) {
+     return bluetooth::shim::BTM_GetDeviceIDRoot();
+   }
+diff --git a/system/stack/btm/btm_ble_privacy.cc b/system/stack/btm/btm_ble_privacy.cc
+index 6dafc4a51d..4b6367dadf 100644
+--- a/system/stack/btm/btm_ble_privacy.cc
++++ b/system/stack/btm/btm_ble_privacy.cc
+@@ -28,6 +28,7 @@
+ #include "bt_target.h"
+ #include "device/include/controller.h"
+ #include "main/shim/acl_api.h"
++#include "stack/include/btm_ble_api.h"
+ #include "stack/btm/btm_dev.h"
+ #include "stack/include/bt_octets.h"
+ #include "types/raw_address.h"
+@@ -536,7 +537,7 @@ static bool is_peer_identity_key_valid(const tBTM_SEC_DEV_REC& dev_rec) {
+   return dev_rec.ble.key_type & BTM_LE_KEY_PID;
+ }
+ 
+-static Octet16 get_local_irk() { return btm_cb.devcb.id_keys.irk; }
++static Octet16 get_local_irk() { return BTM_GetDeviceIDRoot(); }
+ 
+ void btm_ble_resolving_list_load_dev(tBTM_SEC_DEV_REC& dev_rec) {
+   if (controller_get_interface()->get_ble_resolving_list_max_size() == 0) {
